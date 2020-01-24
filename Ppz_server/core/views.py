@@ -1,5 +1,4 @@
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView
 from rest_framework.response import Response
 from .models import TrainingGame, User, Match, MatchGame, TrainingRun, Network
 from rest_framework.exceptions import ValidationError
@@ -13,23 +12,32 @@ from django.core.exceptions import ObjectDoesNotExist
 
 
 def check_user(request):
-    login = request.data.get('login', None)
-    if not login:
-        raise ValidationError({'message': 'User must have a login.'})
+    username = request.data.get('username', None)
+    if not username:
+        raise ValidationError({'message': 'User must have a username field.'})
 
-    user = User.objects.filter(login=login).first()
+    user = User.objects.filter(username=username).first()
     if user:
         return user
 
-    user = User.objects.create_user(**request.data, commit=False)
+    password = request.data.get('password', None)
+    if not password:
+        raise ValidationError({'message': 'User must have a password field.'})
+
+    user = User.objects.create_user(username, password, commit=True)
     return user
 
 
 class NextGameView(APIView):
     def post(self, request, *args, **kwargs):
         user = check_user(request)
-        training_run = TrainingGame.objects.order_by('?').first()
 
+        training_run = TrainingRun.objects.select_related('best_network').filter(active=True).order_by('?').first()
+
+        if training_run is None:
+            return Response({'message': 'No training runs.'})
+
+        # узнал, что невозможно сохранить
         user.assigned_training_run = training_run
         user.save(update_fields=['assigned_training_run'])
 
@@ -40,7 +48,7 @@ class NextGameView(APIView):
             result = {
                 'type': 'match',
                 'match_game_id': match_game.id,
-                'best_sha': match.current_best.sha,
+                'best_network_sha': match.current_best.sha,
                 'candidate_sha': match.candidate.sha,
                 'parameters': match.parameters,
             }
@@ -51,8 +59,8 @@ class NextGameView(APIView):
             "type": "train",
             "training_run_id": training_run.id,
             "network_id": training_run.best_network.id,
-            "sha": training_run.best_network.Sha,
-            "params": training_run.train_parameters,
+            "best_network_sha": training_run.best_network.sha,
+            "params": training_run.training_parameters,
             "keep_time": "16h",
         }
 
@@ -117,24 +125,25 @@ class UploadNetworkView(APIView):
             raise ValidationError({'message': "Uploaded, but no best network."})
 
         Match.objects.create(training_run=training_run, candidate=new_network, current_best=best_network,
-              params=settings.MATCHES.get('params'))
+                             parameters=settings.MATCHES.get('parameters'),
+                             games_to_finish=settings.MATCHES['games_to_finish'])
 
-        # reggression check
-        prev_network1 = training_run.networks.filter(network_number=training_run.last_network - 3).first()
-        if prev_network1 is not None:
-            Match.objects.create(training_run=training_run, candidate=prev_network1, current_best=best_network,
-                             params=settings.MATCHES.get('params'))
-
-        prev_network2 = training_run.networks.filter(network_number=training_run.last_network - 10).first()
-        if prev_network2 is not None:
-            Match.objects.create(training_run=training_run, candidate=prev_network2, current_best=best_network,
-                             params=settings.MATCHES.get('params'))
+        # regression check
+        # prev_network1 = training_run.networks.filter(network_number=best_network.network_number - 3).first()
+        # if prev_network1 is not None:
+        #     Match.objects.create(training_run=training_run, candidate=prev_network1, current_best=best_network,
+        #                      params=settings.MATCHES.get('params'))
+        #
+        # prev_network2 = training_run.networks.filter(network_number=best_network.network_number - 10).first()
+        # if prev_network2 is not None:
+        #     Match.objects.create(training_run=training_run, candidate=prev_network2, current_best=best_network,
+        #                      params=settings.MATCHES.get('params'))
 
         return Response({'message': 'Network uploaded successfully.'})
 
 
 class UploadGameView(APIView):
-    parser_classes = [FormParser]
+    parser_classes = [MultiPartParser]
 
     def post(self, request):
         user = check_user(request)
@@ -148,7 +157,7 @@ class UploadGameView(APIView):
 
         training_run_id = request.data.get('training_run_id', None)
         if training_run_id is None:
-            raise ValidationError({'message': 'No training run id.'})
+            raise ValidationError({'message': 'Need training run id field.'})
 
         try:
             training_run_id = int(training_run_id)
@@ -156,7 +165,7 @@ class UploadGameView(APIView):
             raise ValidationError({'message': 'Training run id need to be an integer.'})
 
         try:
-            training_run = TrainingRun.object.get(training_run_id)
+            training_run = TrainingRun.objects.get(id=training_run_id)
         except ObjectDoesNotExist:
             raise ValidationError({'message': 'Invalid training id.'})
 
@@ -170,7 +179,7 @@ class UploadGameView(APIView):
             raise ValidationError({'message': 'Network id need to be an integer.'})
 
         try:
-            network = Network.object.get(network_id)
+            network = Network.objects.get(id=network_id)
         except ObjectDoesNotExist:
             raise ValidationError({'message': 'Invalid network id.'})
 
@@ -183,7 +192,7 @@ class UploadGameView(APIView):
         training_game = TrainingGame.objects.create(user=user, training_run=training_run, network=network,
                                      game_number=training_run.last_game)
 
-        training_game.file.save(f'{training_run_id}_{training_game.game_number}', game_file.read())
+        training_game.file.save(f'{training_run_id}_{training_game.game_number}', game_file)
 
         return Response({'message': 'Training game uploaded successfully.'})
 
@@ -202,8 +211,8 @@ class DownloadNetworkView(APIView):
         return FileResponse(network.file, filename=network.file.name)
 
 
-class MatchResultView(APIView):
-    parser_classes = [FormParser]
+class MatchGameResultView(APIView):
+    parser_classes = [MultiPartParser]
 
     def post(self, request):
         match_game_file = request.data.get('match_game_file', None)
@@ -239,26 +248,26 @@ class MatchResultView(APIView):
             match.draws += 1
             update_fields = ['draws']
         elif result == -1:
-            match.losses += 1
-            update_fields = ['losses']
+            match.best_wins += 1
+            update_fields = ['best_wins']
         elif result == 1:
-            match.wins += 1
-            update_fields = ['wins']
+            match.candidate_wins += 1
+            update_fields = ['candidate_wins']
         else:
             raise ValidationError({'message': 'Bad result.'})
 
         match_game.result = result
         match_game.done = True
-        match_game.file.save(str(match_game_id), match_game_file.read())
+        match_game.file.save(str(match_game_id), match_game_file)
 
         match_game.save(update_fields=['result', 'done'])
 
         if match.done:
             raise ValidationError({'message': 'Match already is done.'})
 
-        games_count = match.wins + match.losses + match.draws
+        games_count = match.candidate_wins + match.best_wins + match.draws
 
-        if games_count >= match.finish_games_count:
+        if games_count >= match.games_to_finish:
             match.done = True
 
             w = match.wins/games_count
@@ -267,8 +276,6 @@ class MatchResultView(APIView):
             mu = w + d/2
 
             passed = mu >= settings.MATCHES['update_threshold']
-
-            # TODO Не понятно, где изменяется эло
 
             match.passed = passed
 
@@ -279,3 +286,5 @@ class MatchResultView(APIView):
             update_fields += ['done', 'passed']
 
         match.save(update_fields=update_fields)
+
+        return Response({'message': 'Match game uploaded successfully.'})

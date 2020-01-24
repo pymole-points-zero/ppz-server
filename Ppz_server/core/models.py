@@ -10,13 +10,14 @@ from rest_framework.exceptions import ValidationError
 
 # описывает редактирование объектов модели
 class CustomUserManager(BaseUserManager):
-    def create_user(self, login, password, commit=True):
-        if not login:
-            raise ValidationError({'message': 'User must have a login.'})
+    def create_user(self, username, password, commit=True):
+        print(username, password)
+        if not username:
+            raise ValidationError({'message': 'User must have a username.'})
         if not password:
             raise ValidationError({'message': 'User must have a password.'})
 
-        user = self.model(login=login)
+        user = self.model(username=username)
         user.set_password(password)
 
         # нужен для исключения повторного коммита в бд при создании суперюзера
@@ -25,8 +26,8 @@ class CustomUserManager(BaseUserManager):
 
         return user
 
-    def create_superuser(self, login, password):
-        user = self.create_user(login, password, commit=False)
+    def create_superuser(self, username, password):
+        user = self.create_user(username, password, commit=False)
         user.is_superuser = True
         user.is_staff = True
 
@@ -36,8 +37,7 @@ class CustomUserManager(BaseUserManager):
 
 # Create your models here.
 class User(AbstractBaseUser, PermissionsMixin):
-    login = models.CharField(max_length=64, unique=True, null=False)
-    password = models.CharField(max_length=64)
+    username = models.CharField(max_length=64, unique=True, null=False)
 
     is_staff = models.BooleanField(default=False)
 
@@ -45,13 +45,13 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     date_joined = models.DateTimeField(default=timezone.now)
 
-    USERNAME_FIELD = 'login'
+    USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = []    # пароль обрабатывается формой, USERNAME_FIELD включать не нужно
 
     objects = CustomUserManager()
 
     def __str__(self):
-        return self.login
+        return self.username
 
 
 class Network(models.Model):
@@ -74,8 +74,8 @@ class Network(models.Model):
 class TrainingRun(models.Model):
     best_network = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True, blank=True)
 
-    description = models.TextField(blank=False)
-    training_parameters = models.TextField(blank=False)
+    description = models.TextField(blank=True, null=True)
+    training_parameters = models.TextField(blank=False, null=False)
     active = models.BooleanField(default=False)
 
     last_game = models.IntegerField(default=0)
@@ -87,6 +87,7 @@ class TrainingRun(models.Model):
 
 class TrainingGame(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
+    game_number = models.IntegerField(null=True)
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     training_run = models.ForeignKey(TrainingRun, on_delete=models.SET_NULL, null=True)
@@ -106,11 +107,11 @@ class Match(models.Model):
 
     games_created = models.IntegerField(default=0)
 
-    wins = models.IntegerField(default=0)
-    losses = models.IntegerField(default=0)
+    candidate_wins = models.IntegerField(default=0)
+    best_wins= models.IntegerField(default=0)
     draws = models.IntegerField(default=0)
 
-    finish_games_count = models.IntegerField(null=False)
+    games_to_finish = models.IntegerField(null=False)
     done = models.BooleanField(default=False)
     passed = models.BooleanField(null=True)
 

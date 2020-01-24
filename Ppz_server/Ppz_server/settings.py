@@ -138,6 +138,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 MATCHES = {
-    'params': '',
-    'update_threshold': 0.55
+    'parameters': '',
+    'update_threshold': 0.55,
+    'games_to_finish': 2
 }
