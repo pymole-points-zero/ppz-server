@@ -4,6 +4,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
     PermissionsMixin
 )
+from django.contrib.postgres.fields import JSONField
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -11,11 +12,10 @@ from rest_framework.exceptions import ValidationError
 # описывает редактирование объектов модели
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, password, commit=True):
-        print(username, password)
         if not username:
-            raise ValidationError({'message': 'User must have a username.'})
+            raise ValidationError({'error': 'User must have a username.'})
         if not password:
-            raise ValidationError({'message': 'User must have a password.'})
+            raise ValidationError({'error': 'User must have a password.'})
 
         user = self.model(username=username)
         user.set_password(password)
@@ -75,7 +75,7 @@ class TrainingRun(models.Model):
     best_network = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True, blank=True)
 
     description = models.TextField(blank=True, null=True)
-    training_parameters = models.TextField(blank=False, null=False)
+    training_parameters = JSONField(blank=False, null=False)
     active = models.BooleanField(default=False)
 
     last_game = models.IntegerField(default=0)
@@ -93,14 +93,13 @@ class TrainingGame(models.Model):
     training_run = models.ForeignKey(TrainingRun, on_delete=models.SET_NULL, null=True)
     network = models.ForeignKey(Network, on_delete=models.SET_NULL, null=True)
 
-    # TODO сделать директорию загрузки динамической за счет использования функции
-    # TODO Make a storage object
-    file = models.FileField(upload_to='training_games/')
+    training_data = models.FileField(upload_to='training_examples/')
+    sgf = models.FileField(upload_to='sgf/training/')
 
 
 class Match(models.Model):
     training_run = models.ForeignKey(TrainingRun, related_name='matches', on_delete=models.SET_NULL, null=True)
-    parameters = models.TextField()
+    parameters = JSONField()
 
     candidate = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True)
     current_best = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True)
@@ -122,7 +121,7 @@ class MatchGame(models.Model):
     user = models.ForeignKey(User, related_name='match_games', on_delete=models.SET_NULL, null=True)
     match = models.ForeignKey(Match, related_name='games', on_delete=models.SET_NULL, null=True)
 
-    file = models.FileField(upload_to='match_games/')
+    sgf = models.FileField(upload_to='sgf/match/')
     done = models.BooleanField(default=False)
     result = models.IntegerField(null=True)
 

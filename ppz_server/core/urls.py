@@ -1,14 +1,13 @@
 from django.urls import path
-from .views import (UploadGameView, NextGameView,
+from .views import (UploadTrainingGameView, NextGameView,
                     UploadNetworkView, DownloadNetworkView,
-                    MatchGameResultView)
-
+                    UploadMatchGameView)
 
 
 urlpatterns = [
-    path('upload_game', UploadGameView.as_view()),
     path('next_game', NextGameView.as_view()),
     path('upload_network', UploadNetworkView.as_view()),
     path('download_network', DownloadNetworkView.as_view()),
-    path('match_game_result', MatchGameResultView.as_view()),
+    path('upload_match_game', UploadMatchGameView.as_view()),
+    path('upload_training_game', UploadTrainingGameView.as_view()),
 ]
