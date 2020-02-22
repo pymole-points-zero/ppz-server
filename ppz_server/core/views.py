@@ -46,12 +46,18 @@ class NextGameView(APIView):
 
         if match:
             match_game = MatchGame.objects.create(user=user, match=match)
+            candidate_turns_first = bool(match_game.id % 2)
+
+            match_game.candidate_turns_first = candidate_turns_first
+            match_game.save()
+
             result = {
                 'game_type': 'match',
                 'match_game_id': match_game.id,
                 'best_network_sha': match.current_best.sha,
                 'candidate_sha': match.candidate.sha,
                 'parameters': list(match.parameters),
+                'candidate_turns_first': candidate_turns_first
             }
 
             return Response(result)
