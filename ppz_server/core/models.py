@@ -37,7 +37,7 @@ class CustomUserManager(BaseUserManager):
 
 # Create your models here.
 class User(AbstractBaseUser, PermissionsMixin):
-    username = models.CharField(max_length=64, unique=True, null=False)
+    username = models.CharField(max_length=64, unique=True)
 
     is_staff = models.BooleanField(default=False)
 
@@ -58,11 +58,11 @@ class Network(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     sha = models.CharField(max_length=64, null=True)
-    network_number = models.IntegerField(null=True)
-    training_run = models.ForeignKey('TrainingRun', related_name='networks', on_delete=models.SET_NULL, null=True)
+    network_number = models.IntegerField()
+    training_run = models.ForeignKey('TrainingRun', related_name='networks', on_delete=models.SET_NULL)
 
     file = models.FileField(upload_to='networks/')
-    elo = models.FloatField(default=1600.0)
+    elo = models.FloatField(default=0.0)
 
     # cached because of expensive COUNT(*) call
     games_played = models.IntegerField(default=0)
@@ -75,7 +75,7 @@ class TrainingRun(models.Model):
     best_network = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True, blank=True)
 
     description = models.TextField(blank=True, null=True)
-    training_parameters = JSONField(blank=False, null=False)
+    training_parameters = JSONField(blank=True)
     active = models.BooleanField(default=False)
 
     last_game = models.IntegerField(default=0)
@@ -87,22 +87,21 @@ class TrainingRun(models.Model):
 
 class TrainingGame(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
-    game_number = models.IntegerField(null=True)
+    game_number = models.IntegerField()
 
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    training_run = models.ForeignKey(TrainingRun, on_delete=models.SET_NULL, null=True)
-    network = models.ForeignKey(Network, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL)
+    training_run = models.ForeignKey(TrainingRun, on_delete=models.SET_NULL)
+    network = models.ForeignKey(Network, on_delete=models.SET_NULL)
 
-    training_example = models.FileField(upload_to='training_examples/', null=True)
-    sgf = models.FileField(upload_to='sgf/training/', null=True)
+    sgf = models.CharField()
 
 
 class Match(models.Model):
-    training_run = models.ForeignKey(TrainingRun, related_name='matches', on_delete=models.SET_NULL, null=True)
-    parameters = JSONField()
+    training_run = models.ForeignKey(TrainingRun, related_name='matches', on_delete=models.SET_NULL)
+    parameters = JSONField(blank=True)
 
-    candidate = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True)
-    current_best = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL, null=True)
+    candidate = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL)
+    current_best = models.ForeignKey(Network, related_name='+', on_delete=models.SET_NULL)
 
     games_created = models.IntegerField(default=0)
 
@@ -110,7 +109,7 @@ class Match(models.Model):
     best_wins= models.IntegerField(default=0)
     draws = models.IntegerField(default=0)
 
-    games_to_finish = models.IntegerField(null=False)
+    games_to_finish = models.IntegerField()
     done = models.BooleanField(default=False)
     passed = models.BooleanField(null=True)
 
@@ -118,12 +117,13 @@ class Match(models.Model):
 class MatchGame(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
-    user = models.ForeignKey(User, related_name='match_games', on_delete=models.SET_NULL, null=True)
-    match = models.ForeignKey(Match, related_name='games', on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(User, related_name='match_games', on_delete=models.SET_NULL)
+    match = models.ForeignKey(Match, related_name='games', on_delete=models.SET_NULL)
 
+    # null = True because value calculated from id that appears after creation
     candidate_turns_first = models.BooleanField(null=True)
 
-    sgf = models.FileField(upload_to='sgf/match/', null=True)
-    done = models.BooleanField(default=False)
+    sgf = models.CharField(null=True)
     result = models.IntegerField(null=True)
+    done = models.BooleanField(default=False)
 

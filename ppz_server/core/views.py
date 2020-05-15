@@ -9,6 +9,8 @@ from django.conf import settings
 from django.http import FileResponse
 from django.core.exceptions import ObjectDoesNotExist
 
+# TODO https://docs.djangoproject.com/en/3.0/topics/db/optimization/
+
 
 def check_user(request):
     username = request.data.get('username', None)
@@ -56,7 +58,7 @@ class NextGameView(APIView):
                 'match_game_id': match_game.id,
                 'best_network_sha': match.current_best.sha,
                 'candidate_sha': match.candidate.sha,
-                'parameters': list(match.parameters),
+                'parameters': match.parameters,
                 'candidate_turns_first': candidate_turns_first
             }
 
@@ -67,7 +69,7 @@ class NextGameView(APIView):
             "training_run_id": training_run.id,
             "network_id": training_run.best_network.id,
             "best_network_sha": training_run.best_network.sha,
-            "parameters": list(training_run.training_parameters),
+            "parameters": training_run.training_parameters,
             "keep_time": 16,
         }
 
@@ -154,13 +156,6 @@ class UploadTrainingGameView(APIView):
 
     def post(self, request):
         user = check_user(request)
-        training_example = request.FILES.get('training_example', None)
-
-        if training_example is None:
-            raise ValidationError({'error': 'No training example.'})
-
-        if training_example.size <= 0:
-            raise ValidationError({'error': 'Empty training example file.'})
 
         training_run_id = request.data.get('training_run_id', None)
         if training_run_id is None:
@@ -190,6 +185,13 @@ class UploadTrainingGameView(APIView):
         except ObjectDoesNotExist:
             raise ValidationError({'error': 'Invalid network id.'})
 
+        training_game_sgf = request.data.get('training_game_sgf', None)
+        if training_game_sgf is None:
+            raise ValidationError({'error': 'Need a training game sgf.'})
+
+        if len(training_game_sgf) == 0:
+            raise ValidationError({'error': 'Training game is empty.'})
+
         network.games_played += 1
         network.save(update_fields=['games_played'])
 
@@ -197,14 +199,8 @@ class UploadTrainingGameView(APIView):
         training_run.save(update_fields=['last_game'])
 
         training_game = TrainingGame.objects.create(user=user, training_run=training_run,
-                                                    network=network, game_number=training_run.last_game)
-
-        training_game.training_example.save(f'{training_run_id}_{training_game.game_number}', training_example)
-
-        # если sgf предоставлена, то сохраняем её
-        training_game_sgf = request.FILES.get('training_game_sgf', None)
-        if training_game_sgf is not None:
-            training_game.sgf.save(f'{training_run_id}_{training_game.game_number}', training_game_sgf)
+                                                    network=network, game_number=training_run.last_game,
+                                                    sgf=training_game_sgf)
 
         return Response({'message': 'Training game uploaded successfully.'})
 
@@ -227,9 +223,14 @@ class UploadMatchGameView(APIView):
     parser_classes = [MultiPartParser]
 
     def post(self, request):
+        user = check_user(request)
+
         match_game_sgf = request.data.get('match_game_sgf', None)
         if match_game_sgf is None:
             raise ValidationError({'error': 'No match game sgf.'})
+
+        if len(match_game_sgf) == 0:
+            raise ValidationError({'error': 'Empty match game sgf.'})
 
         match_game_id = request.data.get('match_game_id', None)
 
@@ -270,7 +271,7 @@ class UploadMatchGameView(APIView):
 
         match_game.result = result
         match_game.done = True
-        match_game.sgf.save(str(match_game_id), match_game_sgf)
+        match_game.sgf = match_game_sgf
 
         match_game.save(update_fields=['result', 'done'])
 
@@ -282,7 +283,7 @@ class UploadMatchGameView(APIView):
         if games_count >= match.games_to_finish:
             match.done = True
 
-            w = match.wins/games_count
+            w = match.candidate_wins/games_count
             d = match.draws/games_count
 
             mu = w + d/2

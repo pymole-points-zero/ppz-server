@@ -138,7 +138,12 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 MATCHES = {
-    'parameters': [],
+    'parameters': {},
     'update_threshold': 0.55,
     'games_to_finish': 2
 }
+
+match_sgf_path = '/sgf/matches/'
+match_collection_sgf_path = '/sgf/match_collection/'
+training_sgf_path = '/sgf/training/'
+
