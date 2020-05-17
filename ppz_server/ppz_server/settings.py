@@ -143,7 +143,23 @@ MATCHES = {
     'games_to_finish': 2
 }
 
+training_chunk_size = 100
+
 match_sgf_path = '/sgf/matches/'
 match_collection_sgf_path = '/sgf/match_collection/'
 training_sgf_path = '/sgf/training/'
+training_examples_path = '/examples/'
+
+
+# Other Celery settings
+from celery.schedules import crontab
+# app.conf.beat_schedule
+CELERY_BEAT_SCHEDULE = {
+    'elo-update': {
+        'task': 'core.tasks.task_update_elo',
+        'schedule': crontab(minute=0, hour='*/1'),
+    },
+}
+
+
 

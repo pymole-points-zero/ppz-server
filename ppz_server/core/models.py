@@ -93,7 +93,7 @@ class TrainingGame(models.Model):
     training_run = models.ForeignKey(TrainingRun, on_delete=models.SET_NULL)
     network = models.ForeignKey(Network, on_delete=models.SET_NULL)
 
-    sgf = models.CharField()
+    compacted = models.BooleanField(default=False)
 
 
 class Match(models.Model):
@@ -123,7 +123,6 @@ class MatchGame(models.Model):
     # null = True because value calculated from id that appears after creation
     candidate_turns_first = models.BooleanField(null=True)
 
-    sgf = models.CharField(null=True)
     result = models.IntegerField(null=True)
     done = models.BooleanField(default=False)
 

@@ -7,6 +7,19 @@ from unisgf import Collection, Parser, Renderer
 
 # TODO https://docs.djangoproject.com/en/3.0/topics/db/optimization/
 
+def compute_elo(first_rating, second_rating, first_actual_score):
+    # compute elo
+    E = lambda ra, rb: 1 / (1 + 10 ** ((ra - rb) / 400))
+    D = lambda s, e: 20 * (s - e)
+
+    second_actual_score = 1 - first_actual_score
+
+    expected_result = E(first_rating, second_rating)
+    first_diff = D(first_actual_score, expected_result)
+    second_diff = D(second_actual_score, expected_result)
+
+    return first_diff, second_diff
+
 
 def update_elo():
     '''
@@ -42,11 +55,15 @@ def update_elo():
         if networks_elo[candidate_id] == 0:
             networks_elo[candidate_id] = networks_elo[current_best_id]
 
-        match_sgfs = MatchGame.objects.filter(match_id=match['id'], done=True).values_list(
-            'sgf', 'candidate_turns_first').all()
+        match_games = MatchGame.objects.filter(match_id=match['id'], done=True).values_list(
+            'id', 'candidate_turns_first').all()
 
         # each match game changes elo
-        for match_sgf, candidate_turns_first in match_sgfs:
+        for match_game_id, candidate_turns_first in match_games:
+            sgf_path = os.path.join(settings.match_sgf_path, (match_game_id + '.sgf'))
+            with open(sgf_path, 'r') as f:
+                match_sgf = f.read()
+
             try:
                 collection = parser.parse_string(match_sgf)
             except SyntaxError:
@@ -85,17 +102,3 @@ def update_elo():
     with transaction.atomic():
         for network_id, network_elo in networks_elo:
             Network.objects.filter(id=network_id).update(elo=network_elo)
-
-
-def compute_elo(first_rating, second_rating, first_actual_score):
-    # compute elo
-    E = lambda ra, rb: 1 / (1 + 10 ** ((ra - rb) / 400))
-    D = lambda s, e: 20 * (s - e)
-
-    second_actual_score = 1 - first_actual_score
-
-    expected_result = E(first_rating, second_rating)
-    first_diff = D(first_actual_score, expected_result)
-    second_diff = D(second_actual_score, expected_result)
-
-    return first_diff, second_diff

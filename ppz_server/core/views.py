@@ -8,6 +8,7 @@ import hashlib
 from django.conf import settings
 from django.http import FileResponse
 from django.core.exceptions import ObjectDoesNotExist
+import os
 
 # TODO https://docs.djangoproject.com/en/3.0/topics/db/optimization/
 
@@ -185,12 +186,13 @@ class UploadTrainingGameView(APIView):
         except ObjectDoesNotExist:
             raise ValidationError({'error': 'Invalid network id.'})
 
-        training_game_sgf = request.data.get('training_game_sgf', None)
+        training_game_sgf = request.FILES.get('training_game_sgf', None)
         if training_game_sgf is None:
             raise ValidationError({'error': 'Need a training game sgf.'})
 
-        if len(training_game_sgf) == 0:
-            raise ValidationError({'error': 'Training game is empty.'})
+        training_example = request.FILES.get('training_example', None)
+        if training_example is None:
+            raise ValidationError({'error': 'Need a training example.'})
 
         network.games_played += 1
         network.save(update_fields=['games_played'])
@@ -201,6 +203,18 @@ class UploadTrainingGameView(APIView):
         training_game = TrainingGame.objects.create(user=user, training_run=training_run,
                                                     network=network, game_number=training_run.last_game,
                                                     sgf=training_game_sgf)
+
+        # save sgf
+        sgf_path = os.path.join(settings.training_sgf_path, training_run.id, (training_run.last_game + '.sgf'))
+        os.makedirs(os.path.dirname(sgf_path), exist_ok=True)
+        with open(sgf_path, 'w') as f:
+            f.write(training_game_sgf.read())
+
+        # save example
+        example_path = os.path.join(settings.training_examples_path, training_run.id, (training_run.last_game + '.gz'))
+        os.makedirs(os.path.dirname(example_path), exist_ok=True)
+        with open(sgf_path, 'w') as f:
+            f.write(training_example.read())
 
         return Response({'message': 'Training game uploaded successfully.'})
 
@@ -225,12 +239,9 @@ class UploadMatchGameView(APIView):
     def post(self, request):
         user = check_user(request)
 
-        match_game_sgf = request.data.get('match_game_sgf', None)
+        match_game_sgf = request.FILES.get('match_game_sgf', None)
         if match_game_sgf is None:
             raise ValidationError({'error': 'No match game sgf.'})
-
-        if len(match_game_sgf) == 0:
-            raise ValidationError({'error': 'Empty match game sgf.'})
 
         match_game_id = request.data.get('match_game_id', None)
 
@@ -271,9 +282,15 @@ class UploadMatchGameView(APIView):
 
         match_game.result = result
         match_game.done = True
-        match_game.sgf = match_game_sgf
 
         match_game.save(update_fields=['result', 'done'])
+
+        # save sgf
+        sgf_path = os.path.join(settings.match_sgf_path, (match_game.id + '.sgf'))
+        os.makedirs(os.path.dirname(sgf_path), exist_ok=True)
+
+        with open(sgf_path, 'w') as f:
+            f.write(match_game_sgf.read())
 
         if match.done:
             raise ValidationError({'error': 'Match already is done.'})
