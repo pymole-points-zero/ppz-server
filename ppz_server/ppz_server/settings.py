@@ -26,7 +26,7 @@ SECRET_KEY = 'hyq$6(7%!03$n5o%!7mv1hh$v4yf2g4*31^%)0j#*(g&@k2cm1'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -137,18 +137,22 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+# TODO match and training parameters
 MATCHES = {
-    'parameters': {},
     'update_threshold': 0.55,
-    'games_to_finish': 2
+    'games_to_finish': 20
 }
 
-training_chunk_size = 100
 
-match_sgf_path = '/sgf/matches/'
-match_collection_sgf_path = '/sgf/match_collection/'
-training_sgf_path = '/sgf/training/'
-training_examples_path = '/examples/'
+# TODO rename 'matches' to 'match_games'
+MATCH_SGF_PATH = os.path.join(BASE_DIR, 'sgf', 'matches')
+MATCH_COLLECTION_SGF_PATH = os.path.join(BASE_DIR, 'sgf', 'match_collection')
+TRAINING_SGF_PATH = os.path.join(BASE_DIR, 'sgf', 'training')
+TRAINING_EXAMPLES_PATH = os.path.join(BASE_DIR, 'examples')
+NETWORKS_PATH = os.path.join(BASE_DIR, 'networks')
+
+TRAINING_CHUNK_SIZE = 100
+TRAINING_PATH = '/home/pymole/PycharmProjects/ppz-training/'
 
 
 # Other Celery settings
@@ -159,7 +163,16 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.task_update_elo',
         'schedule': crontab(minute=0, hour='*/1'),
     },
-}
 
+    'test-task': {
+        'task': 'core.tasks.task_run_training',
+        'schedule': crontab(minute=0, hour='*/1'),
+    },
+}
+CELERY_BROKER_URL = 'redis://localhost:6379'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'json'
 
 

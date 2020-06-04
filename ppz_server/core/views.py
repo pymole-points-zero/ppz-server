@@ -60,18 +60,22 @@ class NextGameView(APIView):
                 'best_network_sha': match.current_best.sha,
                 'candidate_sha': match.candidate.sha,
                 'parameters': match.parameters,
+                'field_width': training_run.field_width,
+                'field_height': training_run.field_height,
                 'candidate_turns_first': candidate_turns_first
             }
 
             return Response(result)
 
         result = {
-            "game_type": "train",
-            "training_run_id": training_run.id,
-            "network_id": training_run.best_network.id,
-            "best_network_sha": training_run.best_network.sha,
-            "parameters": training_run.training_parameters,
-            "keep_time": 16,
+            'game_type': 'train',
+            'training_run_id': training_run.id,
+            'network_id': training_run.best_network.id,
+            'best_network_sha': training_run.best_network.sha,
+            'parameters': training_run.training_parameters,
+            'field_width': training_run.field_width,
+            'field_height': training_run.field_height,
+            'keep_time': 16,
         }
 
         return Response(result)
@@ -81,10 +85,12 @@ class UploadNetworkView(APIView):
     parser_classes = [MultiPartParser]
 
     def post(self, request):
+        # TODO make upload possible only for admins
         new_network_file = request.FILES.get('network', None)
         if new_network_file is None:
             raise ValidationError({'error': 'Need network file.'})
 
+        # TODO error handle not a gziped file
         prev_network_sha = request.data.get('prev_delta_sha', None)
         if prev_network_sha is not None:
             prev_network = Network.objects.filter(sha=prev_network_sha).first()
@@ -98,11 +104,11 @@ class UploadNetworkView(APIView):
                 raise ValidationError({'error': 'Corrupted previous network.'})
 
             deltaData = gzip.decompress(new_network_file.read())
+            print(len(prevData), len(deltaData))
             if len(prevData) != len(deltaData):
-                return ValidationError({'error': "Data lengths don't match."})
+                raise ValidationError({'error': "Data lengths don't match."})
 
             changes = bytes(p ^ d for d, p in zip(deltaData, prevData))
-
             sha = hashlib.sha256(changes).hexdigest()
         else:
             sha = hashlib.sha256(gzip.decompress(new_network_file.read())).hexdigest()
@@ -120,14 +126,17 @@ class UploadNetworkView(APIView):
         training_run.save(update_fields=['last_network'])
 
         filters = request.data.get('filters', 0)
-        layers = request.data.get('layers', 0)
+        blocks = request.data.get('blocks', 0)
+        # TODO add field size checks
+        field_width = request.data.get('field_width', 0)
+        field_height = request.data.get('field_height', 0)
 
         new_network = Network.objects.create(
-            training_run=training_run, layers=layers, filters=filters, sha=sha,
-            network_number=training_run.last_network
+            training_run=training_run, blocks=blocks, filters=filters, field_width=field_width,
+            field_height=field_height, sha=sha, network_number=training_run.last_network
         )
 
-        new_network.file.save(sha, new_network_file, save=True)
+        new_network.file.save(sha + '.gz', new_network_file, save=True)
 
         # create match
         best_network = training_run.best_network
@@ -135,7 +144,7 @@ class UploadNetworkView(APIView):
             raise ValidationError({'message': "Uploaded, but no best network."})
 
         Match.objects.create(training_run=training_run, candidate=new_network, current_best=best_network,
-                             parameters=settings.MATCHES.get('parameters'),
+                             parameters=training_run.match_parameters,
                              games_to_finish=settings.MATCHES['games_to_finish'])
 
         # regression check
@@ -196,24 +205,23 @@ class UploadTrainingGameView(APIView):
 
         network.games_played += 1
         network.save(update_fields=['games_played'])
-
         training_run.last_game += 1
         training_run.save(update_fields=['last_game'])
 
         training_game = TrainingGame.objects.create(user=user, training_run=training_run,
-                                                    network=network, game_number=training_run.last_game,
-                                                    sgf=training_game_sgf)
+                                                    network=network, game_number=training_run.last_game)
 
         # save sgf
-        sgf_path = os.path.join(settings.training_sgf_path, training_run.id, (training_run.last_game + '.sgf'))
+        sgf_path = os.path.join(settings.TRAINING_SGF_PATH, str(training_run.id), str(training_run.last_game) + '.sgf')
         os.makedirs(os.path.dirname(sgf_path), exist_ok=True)
-        with open(sgf_path, 'w') as f:
+        with open(sgf_path, 'wb') as f:
             f.write(training_game_sgf.read())
 
         # save example
-        example_path = os.path.join(settings.training_examples_path, training_run.id, (training_run.last_game + '.gz'))
+        example_path = os.path.join(settings.TRAINING_EXAMPLES_PATH,
+                                    str(training_run.id), str(training_run.last_game) + '.gz')
         os.makedirs(os.path.dirname(example_path), exist_ok=True)
-        with open(sgf_path, 'w') as f:
+        with open(example_path, 'wb') as f:
             f.write(training_example.read())
 
         return Response({'message': 'Training game uploaded successfully.'})
@@ -253,7 +261,8 @@ class UploadMatchGameView(APIView):
         except ValueError:
             raise ValidationError({'error': 'Match game id need to be an integer.'})
 
-        match_game = MatchGame.objects.select_related('match').filter(id=match_game_id).first()
+        match_game = MatchGame.objects.select_related(
+            'match', 'match__training_run').filter(id=match_game_id).first()
         if match_game is None:
             raise ValidationError({'error': 'Invalid match game.'})
 
@@ -286,10 +295,10 @@ class UploadMatchGameView(APIView):
         match_game.save(update_fields=['result', 'done'])
 
         # save sgf
-        sgf_path = os.path.join(settings.match_sgf_path, (match_game.id + '.sgf'))
+        sgf_path = os.path.join(settings.MATCH_SGF_PATH, str(match.id), str(match_game.id) + '.sgf')
         os.makedirs(os.path.dirname(sgf_path), exist_ok=True)
 
-        with open(sgf_path, 'w') as f:
+        with open(sgf_path, 'wb') as f:
             f.write(match_game_sgf.read())
 
         if match.done:
@@ -311,7 +320,7 @@ class UploadMatchGameView(APIView):
 
             if passed:
                 match.training_run.best_network = match.candidate
-                match.training_run.save(update_fields='best_network')
+                match.training_run.save()
 
             update_fields += ['done', 'passed']
 

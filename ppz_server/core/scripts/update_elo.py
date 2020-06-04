@@ -1,4 +1,4 @@
-from ppz_server.core.models import Match, MatchGame, Network
+from core.models import Match, MatchGame, Network
 from django.conf import settings
 from django.db import transaction
 import os
@@ -31,7 +31,7 @@ def update_elo():
     # get only matches that have all games done
     # TODO add field that tracks computed matches to prevent additional db queries
     matches = Match.objects.filter(done=True).order_by('id').values(
-        'id', 'candidate_id', 'best_current_id', 'training_run_id').all()
+        'id', 'candidate_id', 'current_best_id', 'training_run_id').all()
 
     networks = Network.objects.filter(
         training_run_id__in=[match['training_run_id'] for match in matches]).values_list('id', 'elo').all()
@@ -39,8 +39,8 @@ def update_elo():
     networks_elo = {network_id: network_elo for network_id, network_elo in networks}
 
     for match in matches:
-        filename = os.path.join(match['training_run_id'], match['id'] + '.sgf')
-        filepath = os.path.join(settings.match_collection_sgf_path, filename)
+        filename = os.path.join(str(match['training_run_id']), str(match['id']) + '.sgf')
+        filepath = os.path.join(settings.MATCH_COLLECTION_SGF_PATH, filename)
 
         if os.path.exists(filepath):
             continue
@@ -60,7 +60,7 @@ def update_elo():
 
         # each match game changes elo
         for match_game_id, candidate_turns_first in match_games:
-            sgf_path = os.path.join(settings.match_sgf_path, (match_game_id + '.sgf'))
+            sgf_path = os.path.join(settings.MATCH_SGF_PATH, str(match['id']), str(match_game_id) + '.sgf')
             with open(sgf_path, 'r') as f:
                 match_sgf = f.read()
 
@@ -73,7 +73,7 @@ def update_elo():
             root = game_tree.get_root()
 
             # extract result of the game
-            result = root['RE']
+            result = str(root['RE'].values[0])
             if result[0] == 'B':
                 candidate_score = 0
             elif result[0] == 'W':
@@ -81,24 +81,27 @@ def update_elo():
             else:
                 candidate_score = 0.5
 
-            if match['candidate_turns_first']:
+            if candidate_turns_first:
                 candidate_score = 1 - candidate_score
 
             # compute elo differences
             candidate_diff, current_best_diff = compute_elo(networks_elo[candidate_id], networks_elo[current_best_id],
                                                             candidate_score)
 
-            # update networks elo
-            networks_elo[candidate_id] += candidate_diff
-            networks_elo[current_best_id] += current_best_diff
+            print(f'{result} {candidate_score}, {candidate_diff}, {current_best_diff}')
 
-            # TODO make some game tree checks; date, players and link inserts
+            # update only candidate elo
+            networks_elo[candidate_id] += candidate_diff
+
+            # TODO make some game tree checks; date, players and source link inserts
             full_collection += collection
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         renderer.render_file(filepath, full_collection)
 
     # update when all ratings recalculated
+    # TODO update only changed
+    print(networks_elo)
     with transaction.atomic():
-        for network_id, network_elo in networks_elo:
+        for network_id, network_elo in networks_elo.items():
             Network.objects.filter(id=network_id).update(elo=network_elo)

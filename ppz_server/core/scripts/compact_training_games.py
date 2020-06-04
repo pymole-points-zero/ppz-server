@@ -11,12 +11,12 @@ def compact_games():
     :return:
     '''
     while True:
-        training_games = TrainingGame.objects.filter(compacted=False).limit(settings.training_chunk_size).all()
+        training_games = TrainingGame.objects.filter(compacted=False).limit(settings.TRAINING_CHUNK_SIZE).all()
         if len(training_games) != settings.training_chunk_size:
             return
 
         # limit can take games from another chunk. Need to calculate real border
-        stop = (training_games[0].id // settings.training_chunk_size + 1) * settings.training_chunk_size
+        stop = (training_games[0].id // settings.TRAINING_CHUNK_SIZE + 1) * settings.TRAINING_CHUNK_SIZE
 
         for i, training_game in enumerate(training_games):
             if training_game.id >= stop:
