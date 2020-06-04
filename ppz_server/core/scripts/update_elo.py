@@ -37,6 +37,7 @@ def update_elo():
         training_run_id__in=[match['training_run_id'] for match in matches]).values_list('id', 'elo').all()
 
     networks_elo = {network_id: network_elo for network_id, network_elo in networks}
+    update_networks = set()
 
     for match in matches:
         filename = os.path.join(str(match['training_run_id']), str(match['id']) + '.sgf')
@@ -91,6 +92,8 @@ def update_elo():
             print(f'{result} {candidate_score}, {candidate_diff}, {current_best_diff}')
 
             # update only candidate elo
+            update_networks.add(candidate_id)
+            networks_elo[current_best_id] += current_best_diff
             networks_elo[candidate_id] += candidate_diff
 
             # TODO make some game tree checks; date, players and source link inserts
@@ -100,8 +103,6 @@ def update_elo():
         renderer.render_file(filepath, full_collection)
 
     # update when all ratings recalculated
-    # TODO update only changed
-    print(networks_elo)
     with transaction.atomic():
-        for network_id, network_elo in networks_elo.items():
-            Network.objects.filter(id=network_id).update(elo=network_elo)
+        for network_id in update_networks:
+            Network.objects.filter(id=network_id).update(elo=networks_elo[network_id])
