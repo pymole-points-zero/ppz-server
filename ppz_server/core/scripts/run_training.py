@@ -25,7 +25,8 @@ def run_training():
     config = {
         "input_path": os.path.join(settings.TRAINING_EXAMPLES_PATH, str(training_run_id)),
 
-        "num_chunks": 100,
+        "pool_size": 500,
+        "num_chunks": 150,
         "allow_less": True,
         "train_ratio": 0.9,
         "model_input": os.path.join(settings.NETWORKS_PATH, str(best_sha) + '.gz'),

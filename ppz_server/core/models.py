@@ -63,7 +63,7 @@ class Network(models.Model):
 
     file = models.FileField(upload_to='networks/')
 
-    elo = models.FloatField(default=0.0)
+    elo = models.FloatField(null=True)
 
     # cached because of expensive COUNT(*) call
     games_played = models.IntegerField(default=0)

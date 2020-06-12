@@ -52,8 +52,10 @@ def update_elo():
         candidate_id = match['candidate_id']
         current_best_id = match['current_best_id']
 
+        initial_current_best_elo = networks_elo[current_best_id]
+
         # it was first match of candidate network. Assign its elo to best elo.
-        if networks_elo[candidate_id] == 0:
+        if networks_elo[candidate_id] is None:
             networks_elo[candidate_id] = networks_elo[current_best_id]
 
         match_games = MatchGame.objects.filter(match_id=match['id'], done=True).values_list(
@@ -93,16 +95,25 @@ def update_elo():
 
             # update only candidate elo
             update_networks.add(candidate_id)
+            # change best network rating only to save elo formula balance and then
+            # restore after match calculated
             networks_elo[current_best_id] += current_best_diff
             networks_elo[candidate_id] += candidate_diff
 
             # TODO make some game tree checks; date, players and source link inserts
             full_collection += collection
 
+        # restore rating of the current best network
+        networks_elo[current_best_id] = initial_current_best_elo
+
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         renderer.render_file(filepath, full_collection)
+
+
 
     # update when all ratings recalculated
     with transaction.atomic():
         for network_id in update_networks:
-            Network.objects.filter(id=network_id).update(elo=networks_elo[network_id])
+            elo = networks_elo[network_id]
+            print(network_id, elo)
+            Network.objects.filter(id=network_id).update(elo=elo)
