@@ -39,7 +39,7 @@ class NextGameView(APIView):
         training_run = TrainingRun.objects.select_related('best_network').filter(active=True).order_by('?').first()
 
         if training_run is None:
-            return Response({'error': 'No training runs.'})
+            return Response({'error': 'No active training runs.'})
 
         # узнал, что невозможно сохранить
         user.assigned_training_run = training_run

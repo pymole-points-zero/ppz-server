@@ -14,6 +14,8 @@ class Progress(APIView):
         for idx, network in enumerate(networks):
             if network['elo'] is None:
                 remove_idx.append(idx)
+                continue
+
             if network['games_played'] == 0:
                 aggregated_count += 1
             else:
@@ -22,6 +24,7 @@ class Progress(APIView):
             network['games_played'] = aggregated_count
 
         # remove rating networks with undefined rating
+        networks = list(networks)
         remove_idx.reverse()
         for idx in remove_idx:
             networks.pop(idx)

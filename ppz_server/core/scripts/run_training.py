@@ -22,29 +22,19 @@ def run_training():
     # print(training_run_id, best_sha, width, height, blocks, filters)
 
     # construct new config
-    config = {
-        "input_path": os.path.join(settings.TRAINING_EXAMPLES_PATH, str(training_run_id)),
+    base_training_config = os.path.join(settings.BASE_DIR, 'ppz_server',
+                                        'configs', 'base_training_config.json')
+    with open(base_training_config, 'r') as f:
+        config = json.load(f)
 
-        "pool_size": 500,
-        "num_chunks": 150,
-        "allow_less": True,
-        "train_ratio": 0.9,
-        "model_input": os.path.join(settings.NETWORKS_PATH, str(best_sha) + '.gz'),
-        "batch_size": 512,
-        "lr": 0.01,
-        "momentum": 0.9,
-
-        "upload": {
-            "url": " http://127.0.0.1:8000/upload_network",
-            "params": {
-                "blocks": blocks,
-                "filters": filters,
-                "field_width": width,
-                "field_height": height,
-                "training_run_id": training_run_id,
-                "prev_delta_sha": best_sha
-            }
-        }
+    config["input_path"] = os.path.join(settings.TRAINING_EXAMPLES_PATH, str(training_run_id)),
+    config["upload"]["params"] = {
+        "blocks": blocks,
+        "filters": filters,
+        "field_width": width,
+        "field_height": height,
+        "training_run_id": training_run_id,
+        "prev_delta_sha": best_sha
     }
 
     print(config)

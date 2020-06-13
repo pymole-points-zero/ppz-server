@@ -1,0 +1,13 @@
+{
+  "pool_size": 500,
+  "num_chunks": 50,
+  "allow_less": true,
+  "train_ratio": 0.9,
+  "batch_size": 512,
+  "lr": 0.01,
+  "momentum": 0.9,
+
+  "upload": {
+    "url": " http://127.0.0.1:8000/upload_network"
+  }
+}

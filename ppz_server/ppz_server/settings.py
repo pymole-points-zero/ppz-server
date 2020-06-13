@@ -164,9 +164,9 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0, hour='*/1'),
     },
 
-    'test-task': {
+    'training': {
         'task': 'core.tasks.task_run_training',
-        'schedule': crontab(minute=0, hour='*/1'),
+        'schedule': crontab(minute=0, hour='*/2'),
     },
 }
 CELERY_BROKER_URL = 'redis://localhost:6379'
