@@ -137,14 +137,13 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-# TODO match and training parameters
+
 MATCHES = {
     'update_threshold': 0.55,
     'games_to_finish': 20
 }
 
 
-# TODO rename 'matches' to 'match_games'
 MATCH_SGF_PATH = os.path.join(BASE_DIR, 'sgf', 'matches')
 MATCH_COLLECTION_SGF_PATH = os.path.join(BASE_DIR, 'sgf', 'match_collection')
 TRAINING_SGF_PATH = os.path.join(BASE_DIR, 'sgf', 'training')
@@ -155,7 +154,19 @@ TRAINING_CHUNK_SIZE = 100
 TRAINING_PATH = '/home/pymole/PycharmProjects/ppz-training/'
 
 
-# Other Celery settings
+CLOUD_TRAINING = False
+CLOUD_STORAGE = False
+AWS_ACCESS_KEY_ID = keyring.get_password('access_key', 'aws')
+AWS_SECRET_ACCESS_KEY = keyring.get_password('secret_access_key', 'aws')
+
+if CLOUD_STORAGE:
+    import boto3
+    S3 = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID,
+                      aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+    S3_NETWORKS_BUCKET_NAME = 'ppz-networks'
+    S3_EXAMPLES_BUCKET_NAME = 'ppz-examples'
+
+
 from celery.schedules import crontab
 # app.conf.beat_schedule
 CELERY_BEAT_SCHEDULE = {
@@ -163,16 +174,31 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.task_update_elo',
         'schedule': crontab(minute=0, hour='*/1'),
     },
+    #
+    # 'training': {
+    #     'task': 'core.tasks.task_run_training',
+    #     'schedule': crontab(minute=0, hour='*/3'),
+    # },
 
-    'training': {
-        'task': 'core.tasks.task_run_training',
-        'schedule': crontab(minute=0, hour='*/2'),
+    'compact-examples': {
+        'task': 'core.tasks.task_compact_examples',
+        'schedule': crontab(minute='*/1'),
     },
 }
+
+CELERY_BEAT_SCHEDULE['upload-examples'] = {
+    'task': 'core.tasks.task_upload_examples',
+    'schedule': crontab(minute='*/1'),
+}
+
+if CLOUD_STORAGE:
+    CELERY_BEAT_SCHEDULE['upload-examples'] = {
+        'task': 'core.tasks.task_upload_examples',
+        'schedule': crontab(minute=0, hour='*/1'),
+    }
+
 CELERY_BROKER_URL = 'redis://localhost:6379'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379'
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TASK_SERIALIZER = 'json'
-
-

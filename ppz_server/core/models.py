@@ -61,8 +61,6 @@ class Network(models.Model):
     network_number = models.IntegerField()
     training_run = models.ForeignKey('TrainingRun', related_name='networks', on_delete=models.SET_NULL, null=True)
 
-    file = models.FileField(upload_to='networks/')
-
     elo = models.FloatField(null=True)
 
     # cached because of expensive COUNT(*) call

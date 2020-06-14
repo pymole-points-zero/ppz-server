@@ -1,6 +1,6 @@
 {
-  "pool_size": 500,
-  "num_chunks": 50,
+  "pool_size": 150,
+  "num_chunks": 150,
   "allow_less": true,
   "train_ratio": 0.9,
   "batch_size": 512,

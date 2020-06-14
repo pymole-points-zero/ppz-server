@@ -6,7 +6,7 @@ from rest_framework.parsers import MultiPartParser, JSONParser
 import gzip
 import hashlib
 from django.conf import settings
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseRedirect
 from django.core.exceptions import ObjectDoesNotExist
 import os
 
@@ -136,7 +136,14 @@ class UploadNetworkView(APIView):
             field_height=field_height, sha=sha, network_number=training_run.last_network
         )
 
-        new_network.file.save(sha + '.gz', new_network_file, save=True)
+        # save new network file
+        if settings.CLOUD_STOREAGE:
+            settings.S3.upload_fileobj(new_network_file, settings.S3_NETWORKS_BUCKET_NAME, sha+'.gz')
+        else:
+            network_path = os.path.join(settings.NETWORKS_PATH, sha + '.gz')
+            os.makedirs(os.path.dirname(network_path), exist_ok=True)
+            with open(network_path, 'wb') as f:
+                f.write(new_network_file.read())
 
         # create match
         best_network = training_run.best_network
@@ -237,8 +244,20 @@ class DownloadNetworkView(APIView):
         if network is None:
             raise ValidationError({'error': 'Invalid sha.'})
 
-        network.file.open()
-        return FileResponse(network.file, filename=network.file.name)
+        filename = sha + '.gz'
+
+        if settings.CLOUD_STORAGE:
+            url = settings.S3.generate_presigned_url(
+                ClientMethod='get_object',
+                Params={
+                    'Bucket': settings.S3_NETWORKS_BUCKET_NAME,
+                    'Key': filename
+                }
+            )
+            return HttpResponseRedirect(url)
+
+        network_file = open(os.path.join(settings.NETWORKS_PATH, filename), 'rb')
+        return FileResponse(network_file, filename=network_file.name)
 
 
 class UploadMatchGameView(APIView):
@@ -295,7 +314,8 @@ class UploadMatchGameView(APIView):
         match_game.save(update_fields=['result', 'done'])
 
         # save sgf
-        sgf_path = os.path.join(settings.MATCH_SGF_PATH, str(match.id), str(match_game.id) + '.sgf')
+        sgf_path = os.path.join(settings.MATCH_SGF_PATH, str(match.training_run_id),
+                                str(match.id), str(match_game.id) + '.sgf')
         os.makedirs(os.path.dirname(sgf_path), exist_ok=True)
 
         with open(sgf_path, 'wb') as f:

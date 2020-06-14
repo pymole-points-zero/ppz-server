@@ -63,7 +63,8 @@ def update_elo():
 
         # each match game changes elo
         for match_game_id, candidate_turns_first in match_games:
-            sgf_path = os.path.join(settings.MATCH_SGF_PATH, str(match['id']), str(match_game_id) + '.sgf')
+            sgf_path = os.path.join(settings.MATCH_SGF_PATH, str(match['training_run_id']),
+                                    str(match['id']), str(match_game_id) + '.sgf')
             with open(sgf_path, 'r') as f:
                 match_sgf = f.read()
 
@@ -108,8 +109,6 @@ def update_elo():
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         renderer.render_file(filepath, full_collection)
-
-
 
     # update when all ratings recalculated
     with transaction.atomic():

@@ -27,7 +27,8 @@ def run_training():
     with open(base_training_config, 'r') as f:
         config = json.load(f)
 
-    config["input_path"] = os.path.join(settings.TRAINING_EXAMPLES_PATH, str(training_run_id)),
+    config["input_path"] = os.path.join(settings.TRAINING_EXAMPLES_PATH, str(training_run_id))
+    config["model_input"] = os.path.join(settings.NETWORKS_PATH, best_sha+'.gz')
     config["upload"]["params"] = {
         "blocks": blocks,
         "filters": filters,
@@ -52,3 +53,5 @@ def run_training():
     command_string = ' '.join(command_args)
     training_process = subprocess.Popen(command_string, shell=True)
     training_process.wait()
+
+
